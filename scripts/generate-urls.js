@@ -17,16 +17,22 @@ function slugify(s) {
 }
 
 function parseFolderName(dirName) {
-  // Expecting "author - project"
-  const parts = dirName.split(' - ');
-  if (parts.length >= 2) {
-    const author = parts[0].trim();
-    const name = parts.slice(1).join(' - ').trim();
-    return { author, name };
+    // Expecting "author_icon name_project name" separated by "_"
+    const parts = dirName.split('_');
+    if (parts.length >= 3) {
+      const author = parts[0].trim();
+      const icon = parts[1].trim();
+      const name = parts.slice(2).join('_').trim();
+      return { author, icon, name };
+    }
+    // Fallbacks
+    if (parts.length === 2) {
+      const author = parts[0].trim();
+      const name = parts[1].trim();
+      return { author, icon: '', name };
+    }
+    return { author: '', icon: '', name: dirName.trim() };
   }
-  // Fallback when no " - " found
-  return { author: '', name: dirName.trim() };
-}
 
 async function ensureEmptyDir(dir) {
   await fs.promises.rm(dir, { recursive: true, force: true });
@@ -105,6 +111,14 @@ async function readDescription(projectDirAbs) {
     console.warn('index.html missing at repo root; continuing without copying.');
   }
 
+  // Copy lucide-data.json into dist
+  const srcData = path.join(ROOT, 'lucide-data.json');
+  try {
+    await fs.promises.copyFile(srcData, path.join(DIST, 'lucide-data.json'));
+  } catch (e) {
+    console.warn('lucide-data.json missing at repo root; continuing without copying.');
+  }
+
   // Enumerate projects under directory/
   let entries = [];
   try {
@@ -129,7 +143,7 @@ async function readDescription(projectDirAbs) {
       continue;
     }
 
-    const { author, name } = parseFolderName(dirName);
+    const { author, icon, name } = parseFolderName(dirName);
     const slug = slugify(name || dirName);
     const outDir = path.join(DIST, slug);
 
@@ -148,6 +162,7 @@ async function readDescription(projectDirAbs) {
 
     projects.push({
       author,
+      icon,
       name,
       url,
       description

@@ -6,7 +6,7 @@ const { spawn } = require('child_process');
 const url = require('url');
 
 const ROOT = process.cwd();
-const BASE = ROOT;
+const BASE = path.join(ROOT, 'dist');
 
 function run(cmd, args, opts = {}) {
   return new Promise((resolve, reject) => {

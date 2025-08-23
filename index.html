@@ -156,6 +156,45 @@
 
     .hidden { display: none; }
 
+    /* Project line item inserted into grids */
+    .project-line {
+      grid-column: 1 / -1;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      border-radius: 10px;
+      padding: 12px;
+      color: var(--text);
+    }
+    .project-line .pl-icon {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px dashed var(--border);
+    }
+    .project-line .pl-icon i[data-lucide] { width: 32px; height: 32px; }
+    .project-line .pl-icon .name { font-weight: 600; letter-spacing: .01em; }
+
+    .project-line .items {
+      display: grid;
+      gap: 8px;
+    }
+    .project-line .items a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #121418;
+      color: inherit;
+      text-decoration: none;
+    }
+    .project-line .items a:hover { text-decoration: underline; background: #101215; }
+    .project-line .items .proj-name { font-weight: 500; }
+    .project-line .items .proj-author { margin-left: auto; color: var(--muted); }
+
     /* Small screens */
     @media (max-width: 860px) {
       .app { grid-template-columns: 1fr; }
@@ -252,12 +291,47 @@
       return res.json(); // { total, all: string[], categories: [{slug,title,icon,count,icons:[]}] }
     }
 
+    // Load generated project URLs with author/icon/name
+    async function loadProjectUrls() {
+      try {
+        const res = await fetch('./urls.json', { cache: 'no-store' });
+        if (!res.ok) return [];
+        return res.json(); // [{author, icon, name, url, description}]
+      } catch {
+        return [];
+      }
+    }
+
     // 2) Render helpers
     function iconTile(name) {
       const tile = document.createElement('div');
       tile.className = 'tile';
       tile.innerHTML = `<i data-lucide="${name}"></i>`;
       return tile;
+    }
+
+    function projectLine(icon, items) {
+      const div = document.createElement('div');
+      div.className = 'project-line';
+
+      const header = document.createElement('div');
+      header.className = 'pl-icon';
+      header.innerHTML = `<i data-lucide="${icon}"></i><div class="name">${icon}</div>`;
+
+      const list = document.createElement('div');
+      list.className = 'items';
+      items.forEach(p => {
+        const a = document.createElement('a');
+        a.href = p.url || '#';
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.innerHTML = `<span class="proj-name">${p.name}</span><span class="proj-author">${p.author}</span>`;
+        list.appendChild(a);
+      });
+
+      div.appendChild(header);
+      div.appendChild(list);
+      return div;
     }
 
     function setActive(el) {
@@ -279,9 +353,25 @@
 
     // 3) Build UI using local data
     async function init() {
-      const DATA = await loadLucideData();
+      const [DATA, PROJECT_LIST] = await Promise.all([
+        loadLucideData(),
+        loadProjectUrls()
+      ]);
+
+      console.log(DATA);
+      console.log(PROJECT_LIST);
+
       const CATEGORIES = Array.isArray(DATA.categories) ? DATA.categories : [];
       const TOTAL = DATA.total || (Array.isArray(DATA.all) ? DATA.all.length : 0);
+
+      // Build map: icon -> projects
+      const ICON_PROJECTS = new Map();
+      for (const p of PROJECT_LIST) {
+        const key = (p && p.icon ? String(p.icon).toLowerCase() : '');
+        if (!key) continue;
+        if (!ICON_PROJECTS.has(key)) ICON_PROJECTS.set(key, []);
+        ICON_PROJECTS.get(key).push(p);
+      }
 
       // Sidebar (from data.categories)
       for (const cat of CATEGORIES) {
@@ -317,7 +407,14 @@
         grid.className = 'icon-grid';
 
         const tiles = document.createDocumentFragment();
-        icons.forEach(name => tiles.appendChild(iconTile(name)));
+        icons.forEach(name => {
+          const items = ICON_PROJECTS.get(String(name).toLowerCase());
+          if (items && items.length) {
+            tiles.appendChild(projectLine(name, items)); // break the grid at this position
+          } else {
+            tiles.appendChild(iconTile(name));           // otherwise render the icon
+          }
+        });
         grid.appendChild(tiles);
 
         sec.appendChild(h);
@@ -330,7 +427,14 @@
       // All view
       allMeta.textContent = `${TOTAL.toLocaleString()} icon(s)`;
       const allFrag = document.createDocumentFragment();
-      (DATA.all || []).forEach(name => allFrag.appendChild(iconTile(name)));
+      (DATA.all || []).forEach(name => {
+        const items = ICON_PROJECTS.get(String(name).toLowerCase());
+        if (items && items.length) {
+          allFrag.appendChild(projectLine(name, items)); // render once as a line item
+        } else {
+          allFrag.appendChild(iconTile(name));           // otherwise render the icon tile
+        }
+      });
       allGrid.appendChild(allFrag);
 
       // Render the actual SVGs
