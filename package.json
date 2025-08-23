@@ -8,6 +8,7 @@
         "build": "npm run build:urls",
         "vercel-build": "npm run build",
         "start": "python3 -m http.server 8080 || python -m SimpleHTTPServer 8080",
+        "build:lucide-data": "node scripts/build-lucide-data.js --src \"/Users/matthewsiu/Desktop\" --out \"/Users/matthewsiu/Desktop/lucide.fun/lucide-data.json\"",
         "dev": "node scripts/dev.js"
     },
     "license": "MIT",

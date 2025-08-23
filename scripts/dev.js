@@ -6,7 +6,7 @@ const { spawn } = require('child_process');
 const url = require('url');
 
 const ROOT = process.cwd();
-const DIST = path.join(ROOT, 'dist');
+const BASE = ROOT;
 
 function run(cmd, args, opts = {}) {
   return new Promise((resolve, reject) => {
@@ -57,7 +57,7 @@ function startServer(port = 8080) {
       if (p.endsWith('/')) p += 'index.html';
       if (p === '/') p = '/index.html';
 
-      const filePath = path.join(DIST, p);
+      const filePath = path.join(BASE, p);
       fs.promises.readFile(filePath)
         .then((buf) => {
           res.writeHead(200, { 'Content-Type': contentType(filePath), 'Cache-Control': 'no-store' });

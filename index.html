@@ -5,7 +5,7 @@
   <title>lucide.fun</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <!-- Production version -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     :root {
       color-scheme: light dark;
@@ -18,7 +18,7 @@
     }
 
     * { box-sizing: border-box; }
-    html { scroll-behavior: auto; } /* we'll control duration via JS */
+    html { scroll-behavior: auto; } /* custom 300ms scroll via JS */
     body {
       margin: 0;
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
@@ -151,11 +151,8 @@
       display: grid;
       place-items: center;
     }
-    .tile svg {
-      width: 28px;
-      height: 28px;
-      color: #e9ecef;
-    }
+    .tile i[data-lucide] { width: 28px; height: 28px; }
+    .tile svg { width: 28px; height: 28px; color: #e9ecef; }
 
     .hidden { display: none; }
 
@@ -206,55 +203,12 @@
   </div>
 
   <script>
-    // Counts mirror Lucide (note: categories are overlapping; "All" is 1,633 icons)
-    const CATEGORY_DATA = [
-      ["Accessibility",30],
-      ["Accounts & access",133],
-      ["Animals",22],
-      ["Arrows",204],
-      ["Brands",21],
-      ["Buildings",24],
-      ["Charts",31],
-      ["Communication",54],
-      ["Connectivity",89],
-      ["Cursors",33],
-      ["Design",144],
-      ["Coding & development",239],
-      ["Devices",161],
-      ["Emoji",21],
-      ["File icons",165],
-      ["Finance",55],
-      ["Food & beverage",69],
-      ["Gaming",140],
-      ["Home",53],
-      ["Layout",138],
-      ["Mail",26],
-      ["Mathematics",73],
-      ["Medical",41],
-      ["Multimedia",137],
-      ["Nature",20],
-      ["Navigation",139],
-      ["Notification",39],
-      ["People",3],
-      ["Photography",75],
-      ["Science",30],
-      ["Seasons",5],
-      ["Security",57],
-      ["Shapes",47],
-      ["Shopping",27],
-      ["Social",118],
-      ["Sports",12],
-      ["Sustainability",21],
-      ["Text formatting",243],
-      ["Time & calendar",56],
-      ["Tools",65],
-      ["Transportation",59],
-      ["Travel",65],
-      ["Weather",42],
-    ].map(([name,count]) => ({ name, count }));
+    // Category order mirrors the official site: https://lucide.dev/icons/categories
+    // We'll fill counts from metadata at runtime.
+    const CATEGORY_ORDER = [
+      "Accessibility","Accounts & access","Animals","Arrows","Brands","Buildings","Charts","Communication","Connectivity","Cursors","Design","Coding & development","Devices","Emoji","File icons","Finance","Food & beverage","Gaming","Home","Layout","Mail","Mathematics","Medical","Multimedia","Nature","Navigation","Notification","People","Photography","Science","Seasons","Security","Shapes","Shopping","Social","Sports","Sustainability","Text formatting","Time & calendar","Tools","Transportation","Travel","Weather"
+    ];
 
-    const ICONS_TOTAL = 1633; // "All" count
-    const MAX_PER_CATEGORY = 120; // placeholder cap per section
     const OFFSET = 72;           // sticky header offset
     const SCROLL_MS = 300;       // max scroll duration
 
@@ -272,18 +226,6 @@
         .replace(/&/g, 'and')
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '');
-
-    function svgFor(i) {
-      const base = 'stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
-      switch (i % 6) {
-        case 0: return `<svg viewBox="0 0 24 24" aria-hidden="true"><circle ${base} cx="12" cy="12" r="8"/></svg>`;
-        case 1: return `<svg viewBox="0 0 24 24" aria-hidden="true"><rect ${base} x="5" y="5" width="14" height="14" rx="3"/></svg>`;
-        case 2: return `<svg viewBox="0 0 24 24" aria-hidden="true"><path ${base} d="M4 12h16M12 4v16"/></svg>`;
-        case 3: return `<svg viewBox="0 0 24 24" aria-hidden="true"><polygon ${base} points="12 4 20 20 4 20"/></svg>`;
-        case 4: return `<svg viewBox="0 0 24 24" aria-hidden="true"><path ${base} d="M3 12s4-7 9-7 9 7 9 7-4 7-9 7-9-7-9-7z"/><circle ${base} cx="12" cy="12" r="3"/></svg>`;
-        default: return `<svg viewBox="0 0 24 24" aria-hidden="true"><path ${base} d="M8 12l3 3 5-6"/></svg>`;
-      }
-    }
 
     // Smooth scroll with fixed max duration
     function smoothScrollToY(targetY, duration = SCROLL_MS) {
@@ -303,100 +245,19 @@
       requestAnimationFrame(step);
     }
 
-    // Sidebar anchors
-    function renderSidebar() {
-      allCountEl.textContent = ICONS_TOTAL.toLocaleString();
-
-      for (const cat of CATEGORY_DATA) {
-        const a = document.createElement('a');
-        a.className = 'nav-item';
-        a.href = `#${slug(cat.name)}`;
-        a.setAttribute('data-key', cat.name);
-        a.innerHTML = `<span>${cat.name}</span><span class="count">${cat.count}</span>`;
-        categoriesEl.appendChild(a);
-      }
-
-      // Click handlers for all anchors
-      document.querySelectorAll('.nav-item').forEach(link => {
-        link.addEventListener('click', (e) => {
-          const href = link.getAttribute('href') || '';
-          if (!href.startsWith('#')) return;
-
-          e.preventDefault();
-          const id = href.slice(1);
-
-          if (id === 'all') {
-            showAll();
-            setActive(link);
-            smoothScrollToY(0, 200);
-          } else {
-            showCategories();
-            const el = document.getElementById(id);
-            if (el) {
-              setActive(link);
-              const y = el.getBoundingClientRect().top + window.pageYOffset - OFFSET;
-              smoothScrollToY(y, SCROLL_MS);
-            }
-          }
-        });
-      });
+    // 1) Load metadata from local lucide-data.json
+    async function loadLucideData() {
+      const res = await fetch('./lucide-data.json', { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json(); // { total, all: string[], categories: [{slug,title,icon,count,icons:[]}] }
     }
 
-    // Sections (continuous categories)
-    function renderSections() {
-      const frag = document.createDocumentFragment();
-
-      for (const cat of CATEGORY_DATA) {
-        const id = slug(cat.name);
-        const sec = document.createElement('section');
-        sec.className = 'section';
-        sec.id = id;
-
-        const h = document.createElement('h2');
-        h.textContent = cat.name;
-
-        const meta = document.createElement('div');
-        meta.className = 'meta';
-        meta.textContent = `${cat.count.toLocaleString()} icon(s)`;
-
-        const grid = document.createElement('div');
-        grid.className = 'icon-grid';
-
-        const n = Math.min(cat.count, MAX_PER_CATEGORY);
-        for (let i = 0; i < n; i++) {
-          const tile = document.createElement('div');
-          tile.className = 'tile';
-          tile.innerHTML = svgFor(i);
-          grid.appendChild(tile);
-        }
-        if (cat.count > n) {
-          const more = document.createElement('div');
-          more.className = 'meta';
-          more.style.gridColumn = '1 / -1';
-          more.textContent = `Showing ${n.toLocaleString()} of ${cat.count.toLocaleString()} placeholders`;
-          grid.appendChild(more);
-        }
-
-        sec.appendChild(h);
-        sec.appendChild(meta);
-        sec.appendChild(grid);
-        frag.appendChild(sec);
-      }
-
-      sectionsRoot.appendChild(frag);
-    }
-
-    // All view
-    function renderAllView() {
-      allMeta.textContent = `${ICONS_TOTAL.toLocaleString()} icon(s)`;
-      const frag = document.createDocumentFragment();
-      for (let i = 0; i < ICONS_TOTAL; i++) {
-        const tile = document.createElement('div');
-        tile.className = 'tile';
-        tile.innerHTML = svgFor(i);
-        frag.appendChild(tile);
-      }
-      allGrid.appendChild(frag);
+    // 2) Render helpers
+    function iconTile(name) {
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+      tile.innerHTML = `<i data-lucide="${name}"></i>`;
+      return tile;
     }
 
     function setActive(el) {
@@ -416,17 +277,99 @@
       allView.classList.add('hidden');
     }
 
-    // Observe sections to update active link on scroll (only in category view)
-    function setupActiveTracking() {
+    // 3) Build UI using local data
+    async function init() {
+      const DATA = await loadLucideData();
+      const CATEGORIES = Array.isArray(DATA.categories) ? DATA.categories : [];
+      const TOTAL = DATA.total || (Array.isArray(DATA.all) ? DATA.all.length : 0);
+
+      // Sidebar (from data.categories)
+      for (const cat of CATEGORIES) {
+        const a = document.createElement('a');
+        a.className = 'nav-item';
+        a.href = `#${cat.slug}`;
+        a.setAttribute('data-key', cat.title);
+        a.innerHTML = `<span>${cat.title}</span><span class="count">${(cat.count || cat.icons?.length || 0).toLocaleString()}</span>`;
+        categoriesEl.appendChild(a);
+      }
+
+      // All count
+      allCountEl.textContent = TOTAL.toLocaleString();
+
+      // Sections (continuous)
+      const frag = document.createDocumentFragment();
+      for (const cat of CATEGORIES) {
+        const id = cat.slug;
+        const icons = Array.isArray(cat.icons) ? cat.icons : [];
+
+        const sec = document.createElement('section');
+        sec.className = 'section';
+        sec.id = id;
+
+        const h = document.createElement('h2');
+        h.textContent = cat.title;
+
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        meta.textContent = `${(cat.count || icons.length).toLocaleString()} icon(s)`;
+
+        const grid = document.createElement('div');
+        grid.className = 'icon-grid';
+
+        const tiles = document.createDocumentFragment();
+        icons.forEach(name => tiles.appendChild(iconTile(name)));
+        grid.appendChild(tiles);
+
+        sec.appendChild(h);
+        sec.appendChild(meta);
+        sec.appendChild(grid);
+        frag.appendChild(sec);
+      }
+      sectionsRoot.appendChild(frag);
+
+      // All view
+      allMeta.textContent = `${TOTAL.toLocaleString()} icon(s)`;
+      const allFrag = document.createDocumentFragment();
+      (DATA.all || []).forEach(name => allFrag.appendChild(iconTile(name)));
+      allGrid.appendChild(allFrag);
+
+      // Render the actual SVGs
+      if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons();
+      }
+
+      // Sidebar click handlers with 300ms scroll
+      document.querySelectorAll('.nav-item').forEach(link => {
+        link.addEventListener('click', (e) => {
+          const href = link.getAttribute('href') || '';
+          if (!href.startsWith('#')) return;
+          e.preventDefault();
+          const id = href.slice(1);
+
+          if (id === 'all') {
+            showAll();
+            setActive(link);
+            smoothScrollToY(0, 200);
+          } else {
+            showCategories();
+            const el = document.getElementById(id);
+            if (el) {
+              setActive(link);
+              const y = el.getBoundingClientRect().top + window.pageYOffset - OFFSET;
+              smoothScrollToY(y, SCROLL_MS);
+            }
+          }
+        });
+      });
+
+      // Active tracking when scrolling in category view
       const map = new Map(); // id -> link
       document.querySelectorAll('.nav-item').forEach(a => {
         const hash = a.getAttribute('href') || '';
         if (hash.startsWith('#') && hash !== '#all') map.set(hash.slice(1), a);
       });
-
       const observer = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
-          if (entry.isIntersecting && !allView.classList.contains('hidden')) return;
           if (entry.isIntersecting && sectionsRoot && !sectionsRoot.classList.contains('hidden')) {
             const id = entry.target.id;
             const link = map.get(id);
@@ -434,12 +377,9 @@
           }
         });
       }, { threshold: 0.4 });
-
       document.querySelectorAll('.section').forEach(sec => observer.observe(sec));
-    }
 
-    // Search: jump to first matching category
-    function setupSearch() {
+      // Search: match category title or slug; clearing shows All
       search.addEventListener('input', () => {
         const q = search.value.trim().toLowerCase();
         if (!q) {
@@ -447,9 +387,11 @@
           smoothScrollToY(0, 150);
           return;
         }
-        const match = CATEGORY_DATA.find(c => c.name.toLowerCase().includes(q));
+        const match = CATEGORIES.find(c =>
+          c.title.toLowerCase().includes(q) || c.slug.includes(q)
+        );
         if (match) {
-          const id = slug(match.name);
+          const id = match.slug;
           const link = document.querySelector(`.nav-item[href="#${id}"]`);
           if (link) setActive(link);
           showCategories();
@@ -460,15 +402,15 @@
           }
         }
       });
+
+      // Default to "All" view
+      showAll();
     }
 
-    // Init
-    renderSidebar();
-    renderSections();
-    renderAllView();
-    showAll();              // default to "All" view
-    setupActiveTracking();
-    setupSearch();
+    init().catch(err => {
+      console.error(err);
+      allMeta.textContent = 'Failed to load Lucide icons.';
+    });
   </script>
 </body>
 </html>
