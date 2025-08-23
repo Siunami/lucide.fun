@@ -1,0 +1,17 @@
+{
+    "name": "lucide.fun",
+    "private": true,
+    "version": "0.1.0",
+    "description": "Single-page directory index that lists URLs derived from repo structure.",
+    "scripts": {
+        "build:urls": "node scripts/generate-urls.js",
+        "build": "npm run build:urls",
+        "vercel-build": "npm run build",
+        "start": "python3 -m http.server 8080 || python -m SimpleHTTPServer 8080",
+        "dev": "node scripts/dev.js"
+    },
+    "license": "MIT",
+    "engines": {
+      "node": ">=18"
+    }
+  }
