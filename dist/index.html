@@ -4,72 +4,471 @@
   <meta charset="utf-8">
   <title>lucide.fun</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Production version -->
+    <script src="https://unpkg.com/lucide@latest"></script>
   <style>
-    :root { color-scheme: light dark; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; line-height: 1.5; }
-    h1 { font-size: 1.5rem; margin: 0 0 12px; }
-    #status { margin: 8px 0 16px; color: #888; }
-    input[type="search"] { padding: 8px 10px; width: 100%; max-width: 480px; border: 1px solid #ccc; border-radius: 6px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 16px; }
-    .card { padding: 14px; border: 1px solid #ddd; border-radius: 10px; }
-    .card h3 { margin: 0 0 6px; font-size: 1.05rem; }
-    .meta { color: #666; font-size: 0.9rem; margin-bottom: 8px; }
-    .desc { margin: 0; font-size: 0.95rem; }
-    a { text-decoration: none; }
+    :root {
+      color-scheme: light dark;
+      --bg: #0f1012;
+      --panel: #16181b;
+      --border: #292c30;
+      --text: #e6e8eb;
+      --muted: #8b939c;
+      --accent: #ea384c;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: auto; } /* we'll control duration via JS */
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      line-height: 1.5;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    a { color: inherit; text-decoration: none; }
     a:hover { text-decoration: underline; }
+
+    .app {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    aside {
+      border-right: 1px solid var(--border);
+      background: #0e0f11;
+      padding: 16px 14px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: auto;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+    .logo {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background:
+        radial-gradient(12px 12px at 30% 30%, #ff8a00, transparent 55%),
+        radial-gradient(12px 12px at 70% 70%, #ff2d55, transparent 55%),
+        radial-gradient(12px 12px at 70% 30%, #7c5cff, transparent 55%),
+        radial-gradient(12px 12px at 30% 70%, #00d4ff, transparent 55%);
+      box-shadow: 0 0 0 2px #fff1 inset;
+    }
+
+    .section-title {
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin: 14px 8px 6px;
+    }
+
+    .nav-list {
+      display: grid;
+      gap: 2px;
+      margin-bottom: 8px;
+    }
+
+    .nav-item {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      color: inherit;
+      background: transparent;
+      cursor: pointer;
+      text-align: left;
+      font: inherit;
+    }
+    .nav-item:hover { background: #121418; border-color: var(--border); }
+    .nav-item.active {
+      background: var(--panel);
+      border-color: var(--border);
+    }
+    .count { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+    /* Main */
+    main {
+      padding: 20px 20px 28px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      background: linear-gradient(var(--bg), var(--bg));
+      padding-bottom: 12px;
+      z-index: 1;
+    }
+
+    .search {
+      flex: 1 1 auto;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+      color: var(--text);
+      outline: none;
+    }
+    .search::placeholder { color: var(--muted); }
+
+    .section {
+      margin: 18px 0 28px;
+      scroll-margin-top: 72px;
+    }
+    .section h2 {
+      font-size: 1.05rem;
+      margin: 12px 0 4px;
+    }
+    .meta { color: var(--muted); margin-bottom: 12px; font-size: .95rem; }
+
+    .icon-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+      gap: 12px;
+    }
+    .tile {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      border-radius: 12px;
+      aspect-ratio: 1;
+      display: grid;
+      place-items: center;
+    }
+    .tile svg {
+      width: 28px;
+      height: 28px;
+      color: #e9ecef;
+    }
+
+    .hidden { display: none; }
+
+    /* Small screens */
+    @media (max-width: 860px) {
+      .app { grid-template-columns: 1fr; }
+      aside {
+        position: relative;
+        height: auto;
+      }
+    }
   </style>
 </head>
 <body>
-  <h1>Projects</h1>
-  <div id="status">Loading…</div>
-  <input id="filter" type="search" placeholder="Filter by project or author" aria-label="Filter projects">
-  <div class="grid" id="grid"></div>
+  <div class="app">
+    <aside>
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div>Lucide.fun</div>
+      </div>
+
+      <div class="section-title">View</div>
+      <div class="nav-list">
+        <a class="nav-item active" data-key="All" href="#all">
+          <span>All</span><span class="count" id="all-count">0</span>
+        </a>
+      </div>
+
+      <div class="section-title">Categories</div>
+      <div id="categories" class="nav-list" role="listbox" aria-label="Categories"></div>
+    </aside>
+
+    <main>
+      <div class="topbar">
+        <input class="search" id="search" type="search" placeholder="Search icons…" aria-label="Search icons">
+      </div>
+
+      <!-- All view -->
+      <div id="all-view" class="section">
+        <h1 style="margin:12px 0 6px;font-size:1.25rem;">All</h1>
+        <div class="meta" id="all-meta"></div>
+        <div id="all-grid" class="icon-grid"></div>
+      </div>
+
+      <!-- Category sections (continuous) -->
+      <div id="sections"></div>
+    </main>
+  </div>
 
   <script>
-    async function load() {
-      const res = await fetch('urls.json', { cache: 'no-store' });
-      if (!res.ok) throw new Error('Failed to load urls.json');
-      return res.json();
+    // Counts mirror Lucide (note: categories are overlapping; "All" is 1,633 icons)
+    const CATEGORY_DATA = [
+      ["Accessibility",30],
+      ["Accounts & access",133],
+      ["Animals",22],
+      ["Arrows",204],
+      ["Brands",21],
+      ["Buildings",24],
+      ["Charts",31],
+      ["Communication",54],
+      ["Connectivity",89],
+      ["Cursors",33],
+      ["Design",144],
+      ["Coding & development",239],
+      ["Devices",161],
+      ["Emoji",21],
+      ["File icons",165],
+      ["Finance",55],
+      ["Food & beverage",69],
+      ["Gaming",140],
+      ["Home",53],
+      ["Layout",138],
+      ["Mail",26],
+      ["Mathematics",73],
+      ["Medical",41],
+      ["Multimedia",137],
+      ["Nature",20],
+      ["Navigation",139],
+      ["Notification",39],
+      ["People",3],
+      ["Photography",75],
+      ["Science",30],
+      ["Seasons",5],
+      ["Security",57],
+      ["Shapes",47],
+      ["Shopping",27],
+      ["Social",118],
+      ["Sports",12],
+      ["Sustainability",21],
+      ["Text formatting",243],
+      ["Time & calendar",56],
+      ["Tools",65],
+      ["Transportation",59],
+      ["Travel",65],
+      ["Weather",42],
+    ].map(([name,count]) => ({ name, count }));
+
+    const ICONS_TOTAL = 1633; // "All" count
+    const MAX_PER_CATEGORY = 120; // placeholder cap per section
+    const OFFSET = 72;           // sticky header offset
+    const SCROLL_MS = 300;       // max scroll duration
+
+    // Elements
+    const categoriesEl = document.getElementById('categories');
+    const allCountEl = document.getElementById('all-count');
+    const sectionsRoot = document.getElementById('sections');
+    const allView = document.getElementById('all-view');
+    const allGrid = document.getElementById('all-grid');
+    const allMeta = document.getElementById('all-meta');
+    const search = document.getElementById('search');
+
+    const slug = (s) =>
+      s.toLowerCase()
+        .replace(/&/g, 'and')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
+
+    function svgFor(i) {
+      const base = 'stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+      switch (i % 6) {
+        case 0: return `<svg viewBox="0 0 24 24" aria-hidden="true"><circle ${base} cx="12" cy="12" r="8"/></svg>`;
+        case 1: return `<svg viewBox="0 0 24 24" aria-hidden="true"><rect ${base} x="5" y="5" width="14" height="14" rx="3"/></svg>`;
+        case 2: return `<svg viewBox="0 0 24 24" aria-hidden="true"><path ${base} d="M4 12h16M12 4v16"/></svg>`;
+        case 3: return `<svg viewBox="0 0 24 24" aria-hidden="true"><polygon ${base} points="12 4 20 20 4 20"/></svg>`;
+        case 4: return `<svg viewBox="0 0 24 24" aria-hidden="true"><path ${base} d="M3 12s4-7 9-7 9 7 9 7-4 7-9 7-9-7-9-7z"/><circle ${base} cx="12" cy="12" r="3"/></svg>`;
+        default: return `<svg viewBox="0 0 24 24" aria-hidden="true"><path ${base} d="M8 12l3 3 5-6"/></svg>`;
+      }
     }
 
-    function render(projects) {
-      const grid = document.getElementById('grid');
-      const status = document.getElementById('status');
-      const filter = document.getElementById('filter');
+    // Smooth scroll with fixed max duration
+    function smoothScrollToY(targetY, duration = SCROLL_MS) {
+      const startY = window.pageYOffset;
+      const diff = targetY - startY;
+      const start = performance.now();
+      const dur = Math.max(0, Math.min(duration, SCROLL_MS));
+      const easeInOutQuad = (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t);
 
-      let current = projects.slice();
-      function apply() {
-        const q = filter.value.trim().toLowerCase();
-        const filtered = q
-          ? current.filter(p =>
-              (p.name || '').toLowerCase().includes(q) ||
-              (p.author || '').toLowerCase().includes(q) ||
-              (p.description || '').toLowerCase().includes(q)
-            )
-          : current;
+      function step(now) {
+        const t = Math.min(1, (now - start) / dur);
+        const eased = easeInOutQuad(t);
+        window.scrollTo(0, startY + diff * eased);
+        if (t < 1) requestAnimationFrame(step);
+        else window.scrollTo(0, targetY);
+      }
+      requestAnimationFrame(step);
+    }
 
-        status.textContent = `${filtered.length} project(s)`;
-        grid.innerHTML = '';
-        for (const p of filtered) {
-          const el = document.createElement('div');
-          el.className = 'card';
-          el.innerHTML = `
-            <h3><a href="${p.url}">${p.name}</a></h3>
-            <div class="meta">${p.author ? 'by ' + p.author : ''}</div>
-            <p class="desc">${(p.description || '').replace(/</g, '&lt;')}</p>
-          `;
-          grid.appendChild(el);
-        }
+    // Sidebar anchors
+    function renderSidebar() {
+      allCountEl.textContent = ICONS_TOTAL.toLocaleString();
+
+      for (const cat of CATEGORY_DATA) {
+        const a = document.createElement('a');
+        a.className = 'nav-item';
+        a.href = `#${slug(cat.name)}`;
+        a.setAttribute('data-key', cat.name);
+        a.innerHTML = `<span>${cat.name}</span><span class="count">${cat.count}</span>`;
+        categoriesEl.appendChild(a);
       }
 
-      filter.addEventListener('input', apply);
-      apply();
+      // Click handlers for all anchors
+      document.querySelectorAll('.nav-item').forEach(link => {
+        link.addEventListener('click', (e) => {
+          const href = link.getAttribute('href') || '';
+          if (!href.startsWith('#')) return;
+
+          e.preventDefault();
+          const id = href.slice(1);
+
+          if (id === 'all') {
+            showAll();
+            setActive(link);
+            smoothScrollToY(0, 200);
+          } else {
+            showCategories();
+            const el = document.getElementById(id);
+            if (el) {
+              setActive(link);
+              const y = el.getBoundingClientRect().top + window.pageYOffset - OFFSET;
+              smoothScrollToY(y, SCROLL_MS);
+            }
+          }
+        });
+      });
     }
 
-    load().then(render).catch(err => {
-      document.getElementById('status').textContent = 'Error loading urls.json';
-      console.error(err);
-    });
+    // Sections (continuous categories)
+    function renderSections() {
+      const frag = document.createDocumentFragment();
+
+      for (const cat of CATEGORY_DATA) {
+        const id = slug(cat.name);
+        const sec = document.createElement('section');
+        sec.className = 'section';
+        sec.id = id;
+
+        const h = document.createElement('h2');
+        h.textContent = cat.name;
+
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        meta.textContent = `${cat.count.toLocaleString()} icon(s)`;
+
+        const grid = document.createElement('div');
+        grid.className = 'icon-grid';
+
+        const n = Math.min(cat.count, MAX_PER_CATEGORY);
+        for (let i = 0; i < n; i++) {
+          const tile = document.createElement('div');
+          tile.className = 'tile';
+          tile.innerHTML = svgFor(i);
+          grid.appendChild(tile);
+        }
+        if (cat.count > n) {
+          const more = document.createElement('div');
+          more.className = 'meta';
+          more.style.gridColumn = '1 / -1';
+          more.textContent = `Showing ${n.toLocaleString()} of ${cat.count.toLocaleString()} placeholders`;
+          grid.appendChild(more);
+        }
+
+        sec.appendChild(h);
+        sec.appendChild(meta);
+        sec.appendChild(grid);
+        frag.appendChild(sec);
+      }
+
+      sectionsRoot.appendChild(frag);
+    }
+
+    // All view
+    function renderAllView() {
+      allMeta.textContent = `${ICONS_TOTAL.toLocaleString()} icon(s)`;
+      const frag = document.createDocumentFragment();
+      for (let i = 0; i < ICONS_TOTAL; i++) {
+        const tile = document.createElement('div');
+        tile.className = 'tile';
+        tile.innerHTML = svgFor(i);
+        frag.appendChild(tile);
+      }
+      allGrid.appendChild(frag);
+    }
+
+    function setActive(el) {
+      document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
+      el.classList.add('active');
+    }
+
+    function showAll() {
+      allView.classList.remove('hidden');
+      sectionsRoot.classList.add('hidden');
+      const allLink = document.querySelector('.nav-item[data-key="All"]');
+      if (allLink) setActive(allLink);
+    }
+
+    function showCategories() {
+      sectionsRoot.classList.remove('hidden');
+      allView.classList.add('hidden');
+    }
+
+    // Observe sections to update active link on scroll (only in category view)
+    function setupActiveTracking() {
+      const map = new Map(); // id -> link
+      document.querySelectorAll('.nav-item').forEach(a => {
+        const hash = a.getAttribute('href') || '';
+        if (hash.startsWith('#') && hash !== '#all') map.set(hash.slice(1), a);
+      });
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting && !allView.classList.contains('hidden')) return;
+          if (entry.isIntersecting && sectionsRoot && !sectionsRoot.classList.contains('hidden')) {
+            const id = entry.target.id;
+            const link = map.get(id);
+            if (link) setActive(link);
+          }
+        });
+      }, { threshold: 0.4 });
+
+      document.querySelectorAll('.section').forEach(sec => observer.observe(sec));
+    }
+
+    // Search: jump to first matching category
+    function setupSearch() {
+      search.addEventListener('input', () => {
+        const q = search.value.trim().toLowerCase();
+        if (!q) {
+          showAll();
+          smoothScrollToY(0, 150);
+          return;
+        }
+        const match = CATEGORY_DATA.find(c => c.name.toLowerCase().includes(q));
+        if (match) {
+          const id = slug(match.name);
+          const link = document.querySelector(`.nav-item[href="#${id}"]`);
+          if (link) setActive(link);
+          showCategories();
+          const el = document.getElementById(id);
+          if (el) {
+            const y = el.getBoundingClientRect().top + window.pageYOffset - OFFSET;
+            smoothScrollToY(y, SCROLL_MS);
+          }
+        }
+      });
+    }
+
+    // Init
+    renderSidebar();
+    renderSections();
+    renderAllView();
+    showAll();              // default to "All" view
+    setupActiveTracking();
+    setupSearch();
   </script>
 </body>
 </html>
