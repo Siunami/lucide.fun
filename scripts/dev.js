@@ -81,11 +81,14 @@ function startServer(port = 8080) {
 }
 
 function watch() {
-  const watchTargets = [
-    path.join(ROOT, 'directory'),
-    path.join(ROOT, 'index.html'),
-    path.join(ROOT, 'scripts', 'generate-urls.js')
-  ];
+    const watchTargets = [
+        path.join(ROOT, 'directory'),
+        path.join(ROOT, 'index.html'),
+        path.join(ROOT, 'authors.json'),
+        path.join(ROOT, 'lucide-data.json'),
+        path.join(ROOT, 'scripts', 'generate-urls.js'),
+        path.join(ROOT, 'scripts', 'icon-ui.js')
+    ];
   const debounceMs = 150;
   let timer = null;
 

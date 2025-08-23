@@ -119,6 +119,26 @@ async function readDescription(projectDirAbs) {
     console.warn('lucide-data.json missing at repo root; continuing without copying.');
   }
 
+  // Copy authors.json into dist
+  const srcAuthors = path.join(ROOT, 'authors.json');
+  try {
+    await fs.promises.copyFile(srcAuthors, path.join(DIST, 'authors.json'));
+  } catch (e) {
+    console.warn('authors.json missing at repo root; continuing without copying.');
+  }
+
+  // Copy client scripts needed by index.html
+  try {
+    const outScripts = path.join(DIST, 'scripts');
+    await fs.promises.mkdir(outScripts, { recursive: true });
+    await fs.promises.copyFile(
+      path.join(ROOT, 'scripts', 'icon-ui.js'),
+      path.join(outScripts, 'icon-ui.js')
+    );
+  } catch (e) {
+    console.warn('scripts/icon-ui.js missing; continuing without copying.');
+  }
+
   // Enumerate projects under directory/
   let entries = [];
   try {
