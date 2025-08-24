@@ -195,7 +195,7 @@ async function hasIndexHtml(dir) {
         const base =
           process.env.BASE_URL
             ? process.env.BASE_URL.replace(/\/+$/, '')
-            : (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '');
+            : '';
         const pathUrl = authorSlug ? `/${authorSlug}/${projSlug}/` : `/${projSlug}/`;
         const url = base ? `${base}${pathUrl}` : pathUrl;
   
@@ -236,7 +236,7 @@ async function hasIndexHtml(dir) {
       const base =
         process.env.BASE_URL
           ? process.env.BASE_URL.replace(/\/+$/, '')
-          : (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '');
+          : '';
       const pathUrl = `/${authorSlug}/${projSlug}/`;
       const url = base ? `${base}${pathUrl}` : pathUrl;
 

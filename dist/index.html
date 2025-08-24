@@ -84,26 +84,65 @@
       margin-bottom: 8px;
     }
 
+
+
     .nav-item {
       display: grid;
       grid-template-columns: 1fr auto;
       align-items: center;
       gap: 8px;
-      padding: 8px 10px;
+      padding: 6px 10px;
       border-radius: 8px;
       border: 1px solid transparent;
-      color: inherit;
       background: transparent;
+      color: var(--muted);
       cursor: pointer;
       text-align: left;
       font: inherit;
+      font-size: .95rem;
+      text-decoration: none;
     }
-    .nav-item:hover { background: #121418; border-color: var(--border); }
+
+    .nav-item:hover {
+      color: var(--text);
+      background: transparent;
+      border-color: transparent;
+      text-decoration: none; /* no underline on hover */
+    }
     .nav-item.active {
-      background: var(--panel);
-      border-color: var(--border);
+      color: var(--text);
+      background: transparent;
+      border-color: transparent;
     }
     .count { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+    /* Indented categories list with rail */
+    #categories.nav-list {
+      margin-left: 8px;
+      padding-left: 16px;
+      border-left: 1px solid var(--border);
+      position: relative;
+    }
+    /* Animated accent segment on the rail */
+    #categories .rail-thumb {
+      position: absolute;
+      left: -1px;
+      width: 2px;
+      height: 0;
+      background: var(--accent);
+      border-radius: 2px;
+      transform: translateY(0);
+      opacity: 0;
+      transition: transform 250ms ease, height 250ms ease, opacity 200ms ease;
+    }
+
+    /* Mode options ("All" and "Categories") */
+    .mode-list .nav-item { color: var(--muted); padding: 6px 10px; font-weight: 600; }
+    .mode-list .nav-item.active { color: var(--accent); }
+
+    /* Sub-options (category items) */
+    #categories .nav-item { color: var(--muted); font-size: .90rem; font-weight: 400; }
+    #categories .nav-item.active { color: var(--text); }
 
     /* Main */
     main {
@@ -221,13 +260,14 @@
       </div>
 
       <div class="section-title">View</div>
-      <div class="nav-list">
+      <div class="nav-list mode-list">
         <a class="nav-item active" data-key="All" href="#all">
           <span>All</span><span class="count" id="all-count">0</span>
         </a>
+        <a class="nav-item" data-key="Categories" href="#categories-view">
+          <span>Categories</span>
+        </a>
       </div>
-
-      <div class="section-title">Categories</div>
       <div id="categories" class="nav-list" role="listbox" aria-label="Categories"></div>
     </aside>
 
@@ -266,6 +306,10 @@
     const allGrid = document.getElementById('all-grid');
     const allMeta = document.getElementById('all-meta');
     const search = document.getElementById('search');
+    const modeAll = document.querySelector('.nav-item[data-key="All"]');
+    const modeCategories = document.querySelector('.nav-item[data-key="Categories"]');
+    let currentMode = 'all';
+    let currentSubLink = null;
 
     const slug = (s) =>
       s.toLowerCase()
@@ -382,6 +426,54 @@
       el.classList.add('active');
     }
 
+    // Mode and sub-option state
+    function setMode(mode) {
+      currentMode = mode;
+      const rail = categoriesEl.querySelector('.rail-thumb');
+      if (mode === 'all') {
+        allView.classList.remove('hidden');
+        sectionsRoot.classList.add('hidden');
+        if (modeAll) modeAll.classList.add('active');
+        if (modeCategories) modeCategories.classList.remove('active');
+
+        // Clear sub-selection but animate rail to first category, then fade out
+        categoriesEl.querySelectorAll('.nav-item.active').forEach(x => x.classList.remove('active'));
+        currentSubLink = null;
+        const first = categoriesEl.querySelector('.nav-item');
+        if (rail && first) {
+          rail.style.opacity = '1';
+          updateRail(first);
+          rail.style.opacity = '0';
+        }
+          
+        
+      } else {
+        sectionsRoot.classList.remove('hidden');
+        allView.classList.add('hidden');
+        if (modeAll) modeAll.classList.remove('active');
+        if (modeCategories) modeCategories.classList.add('active');
+        if (rail) rail.style.opacity = '1'; // fade back in
+        if (currentSubLink) updateRail(currentSubLink);
+      }
+    }
+
+    function setActiveSub(link) {
+      if (!link) return;
+      if (currentSubLink) currentSubLink.classList.remove('active');
+      currentSubLink = link;
+      currentSubLink.classList.add('active');
+      updateRail(currentSubLink);
+    }
+
+    function updateRail(link) {
+      const rail = categoriesEl.querySelector('.rail-thumb');
+      if (!rail || !link) return;
+      const top = link.offsetTop + 2;
+      const h = Math.max(2, link.offsetHeight - 4);
+      rail.style.height = h + 'px';
+      rail.style.transform = `translateY(${top}px)`;
+    }
+
     function showAll() {
       allView.classList.remove('hidden');
       sectionsRoot.classList.add('hidden');
@@ -431,9 +523,60 @@
         a.innerHTML = `<span>${cat.title}</span><span class="count">${(cat.count || cat.icons?.length || 0).toLocaleString()}</span>`;
         categoriesEl.appendChild(a);
       }
+      // Insert the animated rail thumb
+      const railThumb = document.createElement('div');
+      railThumb.className = 'rail-thumb';
+      categoriesEl.appendChild(railThumb);
+      const firstLink = categoriesEl.querySelector('.nav-item');
+      if (firstLink) setActiveSub(firstLink);
 
       // All count
       allCountEl.textContent = TOTAL.toLocaleString();
+
+    
+
+    // Mode controls
+    if (modeAll) {
+        modeAll.addEventListener('click', (e) => {
+          e.preventDefault();
+          setMode('all');
+          smoothScrollToY(0, 200);
+        });
+      }
+      if (modeCategories) {
+        modeCategories.addEventListener('click', (e) => {
+          e.preventDefault();
+          setMode('categories');
+          // Reset to first category and jump instantly
+          const first = categoriesEl.querySelector('.nav-item');
+          if (first) {
+            setActiveSub(first);
+            const id = (first.getAttribute('href') || '').slice(1);
+            const el = document.getElementById(id);
+            if (el) {
+              const y = el.getBoundingClientRect().top + window.pageYOffset - OFFSET;
+              window.scrollTo(0, y);
+            }
+          }
+        });
+      }
+
+      // Sub-option handlers
+      categoriesEl.querySelectorAll('.nav-item').forEach(link => {
+        link.addEventListener('click', (e) => {
+          const href = link.getAttribute('href') || '';
+          if (!href.startsWith('#')) return;
+          e.preventDefault();
+          setMode('categories');
+          setActiveSub(link);
+          const id = href.slice(1);
+          const el = document.getElementById(id);
+          if (el) {
+            const y = el.getBoundingClientRect().top + window.pageYOffset - OFFSET;
+            window.scrollTo(0, y); // instant jump, no animation
+          }
+        });
+      });
 
       // Sections (continuous)
       const frag = document.createDocumentFragment();
@@ -516,28 +659,37 @@
         });
       });
 
-      // Active tracking when scrolling in category view
-      const map = new Map(); // id -> link
-      document.querySelectorAll('.nav-item').forEach(a => {
+      // Build id -> link map and section list
+      const map = new Map();
+      const catSections = Array.from(document.querySelectorAll('#sections .section'));
+      categoriesEl.querySelectorAll('.nav-item').forEach(a => {
         const hash = a.getAttribute('href') || '';
-        if (hash.startsWith('#') && hash !== '#all') map.set(hash.slice(1), a);
+        if (hash.startsWith('#')) map.set(hash.slice(1), a);
       });
-      const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting && sectionsRoot && !sectionsRoot.classList.contains('hidden')) {
-            const id = entry.target.id;
-            const link = map.get(id);
-            if (link) setActive(link);
-          }
-        });
-      }, { threshold: 0.4 });
-      document.querySelectorAll('.section').forEach(sec => observer.observe(sec));
 
+      // Sync rail to the section that remains at/near the top.
+      // It only switches once a section has fully scrolled past the sticky header.
+      function syncRailToScroll() {
+        if (currentMode !== 'categories') return;
+        let active = null;
+        for (let i = 0; i < catSections.length; i++) {
+          const rect = catSections[i].getBoundingClientRect();
+          if (rect.bottom > OFFSET + 1) { // previous one fully out of view
+            active = catSections[i];
+            break;
+          }
+        }
+        if (!active) active = catSections[catSections.length - 1];
+        const link = active ? map.get(active.id) : null;
+        if (link && link !== currentSubLink) setActiveSub(link);
+      }
+      window.addEventListener('scroll', syncRailToScroll, { passive: true });
+      window.addEventListener('resize', syncRailToScroll);
       // Search: match category title or slug; clearing shows All
       search.addEventListener('input', () => {
         const q = search.value.trim().toLowerCase();
         if (!q) {
-          showAll();
+          setMode('all');
           smoothScrollToY(0, 150);
           return;
         }
@@ -546,9 +698,9 @@
         );
         if (match) {
           const id = match.slug;
-          const link = document.querySelector(`.nav-item[href="#${id}"]`);
-          if (link) setActive(link);
-          showCategories();
+          const link = categoriesEl.querySelector(`.nav-item[href="#${id}"]`);
+          if (link) setActiveSub(link);
+          setMode('categories');
           const el = document.getElementById(id);
           if (el) {
             const y = el.getBoundingClientRect().top + window.pageYOffset - OFFSET;
@@ -557,8 +709,8 @@
         }
       });
 
-      // Default to "All" view
-      showAll();
+      // Default to "All" mode
+      setMode('all');
     }
 
     init().catch(err => {
