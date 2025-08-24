@@ -17,22 +17,35 @@ function slugify(s) {
 }
 
 function parseFolderName(dirName) {
-    // Expecting "author_icon name_project name" separated by "_"
-    const parts = dirName.split('_');
-    if (parts.length >= 3) {
-      const author = parts[0].trim();
-      const icon = parts[1].trim();
-      const name = parts.slice(2).join('_').trim();
-      return { author, icon, name };
-    }
-    // Fallbacks
-    if (parts.length === 2) {
-      const author = parts[0].trim();
-      const name = parts[1].trim();
-      return { author, icon: '', name };
-    }
-    return { author: '', icon: '', name: dirName.trim() };
+  // Flat mode: Expecting "author_icon name_project name" separated by "_"
+  const parts = dirName.split('_');
+  if (parts.length >= 3) {
+    const author = parts[0].trim();
+    const icon = parts[1].trim();
+    const name = parts.slice(2).join('_').trim();
+    return { author, icon, name };
   }
+  // Fallbacks
+  if (parts.length === 2) {
+    const author = parts[0].trim();
+    const name = parts[1].trim();
+    return { author, icon: '', name };
+  }
+  return { author: '', icon: '', name: dirName.trim() };
+}
+
+// Nested mode project folder parser:
+// Expecting "icon name_project name" or "icon_project name" separated by "_"
+// If no "_", we only have a project name and no icon.
+function parseProjectFolderName(dirName) {
+  const parts = dirName.split('_');
+  if (parts.length >= 2) {
+    const icon = parts[0].trim();
+    const name = parts.slice(1).join('_').trim();
+    return { icon, name };
+  }
+  return { icon: '', name: dirName.trim() };
+}
 
 async function ensureEmptyDir(dir) {
   await fs.promises.rm(dir, { recursive: true, force: true });
@@ -99,6 +112,16 @@ async function readDescription(projectDirAbs) {
   return '';
 }
 
+async function hasIndexHtml(dir) {
+  try {
+    const ix = path.join(dir, 'index.html');
+    const st = await fs.promises.stat(ix);
+    return st.isFile();
+  } catch {
+    return false;
+  }
+}
+
 (async function main() {
   // Prepare dist/
   await ensureEmptyDir(DIST);
@@ -139,7 +162,7 @@ async function readDescription(projectDirAbs) {
     console.warn('scripts/icon-ui.js missing; continuing without copying.');
   }
 
-  // Enumerate projects under directory/
+  // Enumerate under directory/
   let entries = [];
   try {
     entries = await fs.promises.readdir(SRC_DIR, { withFileTypes: true });
@@ -151,46 +174,89 @@ async function readDescription(projectDirAbs) {
   const projects = [];
   for (const d of entries) {
     if (!d.isDirectory()) continue;
-    const dirName = d.name; // e.g., "matthew siu - infinite drive"
-    const projectAbs = path.join(SRC_DIR, dirName);
 
-    // Must contain an index.html to be a project
-    try {
-      const ix = path.join(projectAbs, 'index.html');
-      const st = await fs.promises.stat(ix);
-      if (!st.isFile()) continue;
-    } catch {
-      continue;
+    const topAbs = path.join(SRC_DIR, d.name);
+
+    // 1) Flat project directly in topAbs
+    if (await hasIndexHtml(topAbs)) {
+        const { author, icon, name } = parseFolderName(d.name);
+        const projName = name || d.name;
+        const authorName = author && author.trim() ? author : '';
+  
+        const authorSlug = authorName ? slugify(authorName) : '';
+        const projSlug = slugify(projName);
+        const outDir = authorSlug
+          ? path.join(DIST, authorSlug, projSlug)
+          : path.join(DIST, projSlug);
+  
+        await copyDir(topAbs, outDir);
+        const description = await readDescription(topAbs);
+  
+        const base =
+          process.env.BASE_URL
+            ? process.env.BASE_URL.replace(/\/+$/, '')
+            : (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '');
+        const pathUrl = authorSlug ? `/${authorSlug}/${projSlug}/` : `/${projSlug}/`;
+        const url = base ? `${base}${pathUrl}` : pathUrl;
+  
+        projects.push({
+          author: authorName,
+          icon,
+          name: projName,
+          url,
+          description
+        });
+        continue;
     }
 
-    const { author, icon, name } = parseFolderName(dirName);
-    const slug = slugify(name || dirName);
-    const outDir = path.join(DIST, slug);
+    // 2) Nested: treat this folder name as author, and scan subfolders for projects
+    let subdirs = [];
+    try {
+      subdirs = await fs.promises.readdir(topAbs, { withFileTypes: true });
+    } catch {
+      subdirs = [];
+    }
 
-    // Copy project files to root-level /<slug>/ inside dist
-    await copyDir(projectAbs, outDir);
+    for (const s of subdirs) {
+      if (!s.isDirectory()) continue;
+      const projectAbs = path.join(topAbs, s.name);
+      if (!(await hasIndexHtml(projectAbs))) continue;
 
-    const description = await readDescription(projectAbs);
+      const author = d.name.trim();
+      const { icon, name } = parseProjectFolderName(s.name);
+      const projName = name || s.name;
 
-    // Build URL
-    const base =
-      process.env.BASE_URL
-        ? process.env.BASE_URL.replace(/\/+$/, '')
-        : (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '');
-    const pathUrl = `/${slug}/`;
-    const url = base ? `${base}${pathUrl}` : pathUrl;
+      const authorSlug = slugify(author);
+      const projSlug = slugify(projName);
+      const outDir = path.join(DIST, authorSlug, projSlug);
 
-    projects.push({
-      author,
-      icon,
-      name,
-      url,
-      description
-    });
+      await copyDir(projectAbs, outDir);
+      const description = await readDescription(projectAbs);
+
+      const base =
+        process.env.BASE_URL
+          ? process.env.BASE_URL.replace(/\/+$/, '')
+          : (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '');
+      const pathUrl = `/${authorSlug}/${projSlug}/`;
+      const url = base ? `${base}${pathUrl}` : pathUrl;
+
+      projects.push({
+        author,
+        icon,
+        name: projName,
+        url,
+        description
+      });
+    }
   }
 
-  // Sort by name for stability
-  projects.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  // Sort by author then name for stability
+  projects.sort((a, b) => {
+    const aa = (a.author || '').toLocaleLowerCase();
+    const bb = (b.author || '').toLocaleLowerCase();
+    if (aa !== bb) return aa.localeCompare(bb, undefined, { sensitivity: 'base' });
+    return (a.name || '').localeCompare((b.name || ''), undefined, { sensitivity: 'base' });
+  });
 
   // Write urls.json into dist
   await fs.promises.writeFile(

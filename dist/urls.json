@@ -1,23 +1,9 @@
 [
   {
     "author": "matthew siu",
-    "icon": "move-vertical",
-    "name": "illusion of life",
-    "url": "/illusion-of-life/",
-    "description": ""
-  },
-  {
-    "author": "matthew siu",
-    "icon": "baby",
-    "name": "infinite drive",
-    "url": "/infinite-drive/",
-    "description": ""
-  },
-  {
-    "author": "matthew siu",
-    "icon": "baby",
-    "name": "infinite drive copy",
-    "url": "/infinite-drive-copy/",
+    "icon": "bomb",
+    "name": "exploding text",
+    "url": "/matthew-siu/exploding-text/",
     "description": ""
   }
 ]
