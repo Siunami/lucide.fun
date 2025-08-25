@@ -283,6 +283,13 @@
         <div id="all-grid" class="icon-grid"></div>
       </div>
 
+      <!-- Search view -->
+      <div id="search-view" class="section hidden">
+        <h1 style="margin:12px 0 6px;font-size:1.25rem;">Search</h1>
+        <div class="meta" id="search-meta"></div>
+        <div id="search-grid" class="icon-grid"></div>
+      </div>
+
       <!-- Category sections (continuous) -->
       <div id="sections"></div>
     </main>
@@ -306,6 +313,9 @@
     const allGrid = document.getElementById('all-grid');
     const allMeta = document.getElementById('all-meta');
     const search = document.getElementById('search');
+    const searchView = document.getElementById('search-view');
+    const searchGrid = document.getElementById('search-grid');
+    const searchMeta = document.getElementById('search-meta');
     const modeAll = document.querySelector('.nav-item[data-key="All"]');
     const modeCategories = document.querySelector('.nav-item[data-key="Categories"]');
     let currentMode = 'all';
@@ -430,8 +440,10 @@
     function setMode(mode) {
       currentMode = mode;
       const rail = categoriesEl.querySelector('.rail-thumb');
+
       if (mode === 'all') {
         allView.classList.remove('hidden');
+        searchView.classList.add('hidden');
         sectionsRoot.classList.add('hidden');
         if (modeAll) modeAll.classList.add('active');
         if (modeCategories) modeCategories.classList.remove('active');
@@ -445,16 +457,39 @@
           updateRail(first);
           rail.style.opacity = '0';
         }
-          
-        
-      } else {
+      } else if (mode === 'categories') {
         sectionsRoot.classList.remove('hidden');
         allView.classList.add('hidden');
+        searchView.classList.add('hidden');
         if (modeAll) modeAll.classList.remove('active');
         if (modeCategories) modeCategories.classList.add('active');
         if (rail) rail.style.opacity = '1'; // fade back in
         if (currentSubLink) updateRail(currentSubLink);
+      } else if (mode === 'search') {
+        searchView.classList.remove('hidden');
+        allView.classList.add('hidden');
+        sectionsRoot.classList.add('hidden');
+        if (modeAll) modeAll.classList.remove('active');
+        if (modeCategories) modeCategories.classList.remove('active');
+        // Clear sub-selection and fade out the rail
+        categoriesEl.querySelectorAll('.nav-item.active').forEach(x => x.classList.remove('active'));
+        currentSubLink = null;
+        if (rail) rail.style.opacity = '0';
       }
+    }
+
+    function showAll() {
+      allView.classList.remove('hidden');
+      searchView.classList.add('hidden');
+      sectionsRoot.classList.add('hidden');
+      const allLink = document.querySelector('.nav-item[data-key="All"]');
+      if (allLink) setActive(allLink);
+    }
+
+    function showCategories() {
+      sectionsRoot.classList.remove('hidden');
+      allView.classList.add('hidden');
+      searchView.classList.add('hidden');
     }
 
     function setActiveSub(link) {
@@ -685,7 +720,8 @@
       }
       window.addEventListener('scroll', syncRailToScroll, { passive: true });
       window.addEventListener('resize', syncRailToScroll);
-      // Search: match category title or slug; clearing shows All
+      
+      // Search: filter icons by name (includes). Clearing shows All.
       search.addEventListener('input', () => {
         const q = search.value.trim().toLowerCase();
         if (!q) {
@@ -693,19 +729,29 @@
           smoothScrollToY(0, 150);
           return;
         }
-        const match = CATEGORIES.find(c =>
-          c.title.toLowerCase().includes(q) || c.slug.includes(q)
-        );
-        if (match) {
-          const id = match.slug;
-          const link = categoriesEl.querySelector(`.nav-item[href="#${id}"]`);
-          if (link) setActiveSub(link);
-          setMode('categories');
-          const el = document.getElementById(id);
-          if (el) {
-            const y = el.getBoundingClientRect().top + window.pageYOffset - OFFSET;
-            smoothScrollToY(y, SCROLL_MS);
+
+        setMode('search');
+
+        const list = (DATA.all || []);
+        const results = list.filter(name => String(name).toLowerCase().includes(q));
+
+        searchMeta.textContent = `${results.length.toLocaleString()} result(s)`;
+        searchGrid.innerHTML = '';
+        const frag = document.createDocumentFragment();
+
+        results.forEach(name => {
+          const items = ICON_PROJECTS.get(String(name).toLowerCase());
+          if (items && items.length) {
+            frag.appendChild(projectLine(name, items, AUTHOR_URLS));
+          } else {
+            frag.appendChild(iconTile(name));
           }
+        });
+
+        searchGrid.appendChild(frag);
+
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
         }
       });
 
