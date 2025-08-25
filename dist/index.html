@@ -84,8 +84,6 @@
       margin-bottom: 8px;
     }
 
-
-
     .nav-item {
       display: grid;
       grid-template-columns: 1fr auto;
@@ -139,10 +137,12 @@
     /* Mode options ("All" and "Categories") */
     .mode-list .nav-item { color: var(--muted); padding: 6px 10px; font-weight: 600; }
     .mode-list .nav-item.active { color: var(--accent); }
+    .mode-list .nav-item:hover { color: var(--accent); }
 
     /* Sub-options (category items) */
     #categories .nav-item { color: var(--muted); font-size: .90rem; font-weight: 400; }
     #categories .nav-item.active { color: var(--text); }
+    #categories .nav-item:hover { color: var(--text); }
 
     /* Main */
     main {
