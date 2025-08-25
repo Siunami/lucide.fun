@@ -21,35 +21,40 @@
       background: var(--panel); color: var(--text);
       border: 1px solid var(--border); border-radius: 12px;
       box-shadow: 0 12px 32px #0009;
-      padding: 10px;
+      padding: 14px;
     }
     .icon-pop.overlay{
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
       gap: 12px;
+      height: 320px; /* fixed bottom bar height */
     }
-  
-    .op-nav{
-      grid-column: 1 / -1;
-      display: flex; align-items: center; gap: 8px; justify-content: flex-end;
+
+    .icon-pop.overlay[hidden] {
+        display: none !important;
     }
-    .icon-button{
-      all: unset; display: inline-grid; place-items: center;
-      width: 34px; height: 34px; border-radius: 8px;
-      background: #121418; border: 1px solid var(--border);
+
+    .icon-pop .close-btn{
+      position: absolute; top: 10px; right: 10px; z-index: 2;
+      padding: 8px;
       cursor: pointer;
+      border-radius: 12px; background: #0e0f11; border: 1px solid var(--border);
     }
-    .icon-button:hover{ background: #0f1115; }
-  
+
+    /* Left preview fills available height */
     .icon-container{
       display: grid; place-items: center;
-      width: 100%; aspect-ratio: 1 / 1;
-      max-width: 220px; /* prevent tall panel */
+      width: 296px; height: 296px;
       border-radius: 12px; background: #0e0f11; border: 1px solid var(--border);
       padding: 12px;
     }
-    .icon-container svg{ width: 140px; height: 140px; color: #e9ecef; }
+    .icon-container svg{
+      width: auto; height: auto; color: #e9ecef;
+      max-width: 80%; max-height: 80%;
+    }
   
+    /* Right column */
     .icon-info .icon-name{
       margin: 0; font-size: 1.35rem; font-weight: 700; letter-spacing: .01em;
       display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;
@@ -59,8 +64,11 @@
       transition: opacity .12s ease;
     }
     .icon-info .icon-name:hover .copy{ opacity: 1; }
+    .icon-info .info-head{
+      display: flex; flex-direction: column; gap: 12px; flex-wrap: wrap;
+    }
   
-    .buttons{ display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .buttons{ display: flex; flex-wrap: wrap; gap: 8px; margin-top: 0; }
     .VPButton{
       all: unset; display: inline-flex; align-items: center; justify-content: center;
       padding: 10px 14px; border-radius: 999px; cursor: pointer;
@@ -95,9 +103,9 @@
     .dd button:hover{ background: #121418; }
   
     @media (max-width: 860px){
-      .icon-pop.overlay{ grid-template-columns: 1fr; }
-      .icon-container{ max-width: 180px; }
-      .icon-container svg{ width: 120px; height: 120px; }
+      .icon-pop.overlay{ grid-template-columns: 1fr; height: auto; }
+      .icon-container{ height: auto; }
+      .icon-container svg{ width: auto; height: auto; max-width: none; max-height: none; }
     }
   
     .icon-toast{
@@ -116,7 +124,7 @@
     tooltip.className = 'icon-tooltip'
     tooltip.hidden = true
     document.body.appendChild(tooltip)
-  
+
     const pop = document.createElement('div')
     pop.className = 'icon-pop overlay'
     pop.hidden = true
@@ -207,20 +215,22 @@
       return t && t.closest ? t.closest(selector) : null
     }
   
-    // Bottom bar aligned to main inner content (20px padding on both sides)
+    // Bottom bar aligned inside <main>
+    // Fixed bar aligned to the <main> horizontal area
     function positionPanel() {
-      const main = document.querySelector('main')
-      const rect = (main || document.body).getBoundingClientRect()
-      const inset = 20
-      const left = Math.max(10, rect.left + inset)
-      const right = Math.min(window.innerWidth - 10, rect.right - inset)
-      const width = Math.max(260, right - left)
-      pop.style.left = left + 'px'
-      pop.style.width = width + 'px'
-      pop.style.top = ''
-      pop.style.bottom = '12px'
+        const main = document.querySelector('main')
+        const rect = (main || document.body).getBoundingClientRect()
+        const inset = 20
+        const left = Math.max(10, rect.left + inset)
+        const right = Math.min(window.innerWidth - 10, rect.right - inset)
+        const width = Math.max(260, right - left)
+        pop.style.left = left + 'px'
+        pop.style.right = 'auto'         // override any CSS right/inset
+        pop.style.width = width + 'px'
+        pop.style.top = ''
+        pop.style.bottom = '12px'
     }
-  
+
     function makeDropdown(items) {
       const dd = document.createElement('div')
       dd.className = 'dd'
@@ -245,25 +255,29 @@
       // Top nav: close button
       const nav = document.createElement('nav')
       nav.className = 'op-nav'
+
+      // Close button (absolute, top-right)
       const close = document.createElement('button')
-      close.className = 'icon-button'
+      close.className = 'icon-button close-btn'
+      close.setAttribute('aria-label', 'Close')
+      close.title = 'Close'
       close.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>'
-      close.addEventListener('click', (e) => { e.stopPropagation(); closeMenu() })
-      nav.appendChild(close)
-      pop.appendChild(nav)
-  
-      // Preview
+      close.addEventListener('click', (e) => { e.preventDefault(); e.stopImmediatePropagation(); closeMenu() })
+
+      // Preview (left column)
       const preview = document.createElement('div')
       preview.className = 'icon-container'
       const svgClone = svg.cloneNode(true)
-      svgClone.setAttribute('width', '140'); svgClone.setAttribute('height', '140')
+      // let CSS size the clone; just ensure it has no hard width/height attrs
+      svgClone.removeAttribute('width'); svgClone.removeAttribute('height')
       preview.appendChild(svgClone)
       pop.appendChild(preview)
-  
-      // Right info
+
+      // Right info column
       const info = document.createElement('div')
       info.className = 'icon-info'
-  
+
+      // Title
       const h1 = document.createElement('h1')
       h1.className = 'icon-name'
       h1.textContent = name
@@ -273,20 +287,18 @@
       h1.appendChild(copyEl)
       h1.title = 'Copy icon name'
       h1.addEventListener('click', (e) => { e.stopPropagation(); copyText(name).then(() => showToast('Name copied')) })
-      info.appendChild(h1)
-  
+
+      // Actions inline with title
       const actions = document.createElement('div')
       actions.className = 'group buttons'
-  
-      // See in action
+
       const see = document.createElement('a')
       see.className = 'VPButton medium brand'
       see.href = `https://lucide.dev/icons/${encodeURIComponent(name)}`
       see.target = '_blank'; see.rel = 'noopener'
       see.textContent = 'See in action'
       actions.appendChild(see)
-  
-      // Copy SVG + dropdown as a clean pill
+
       const svgMenu = document.createElement('div'); svgMenu.className = 'menu'
       const svgWrap = document.createElement('div'); svgWrap.className = 'button-wrapper'
       const svgBtn = document.createElement('button'); svgBtn.className = 'VPButton medium alt main-button'; svgBtn.textContent = 'Copy SVG'
@@ -306,15 +318,22 @@
       })
       svgWrap.appendChild(svgBtn); svgWrap.appendChild(svgArrow); svgMenu.appendChild(svgWrap); svgMenu.appendChild(svgDd)
       actions.appendChild(svgMenu)
-  
-      // Copy JSX (single action)
+
       const jsxBtn = document.createElement('button'); jsxBtn.className = 'VPButton medium alt'; jsxBtn.textContent = 'Copy JSX'
       jsxBtn.addEventListener('click', (e) => { e.stopPropagation(); copyJsxName(name).then(() => showToast('JSX copied')) })
       actions.appendChild(jsxBtn)
-  
-      info.appendChild(actions)
+
+      const head = document.createElement('div')
+      head.className = 'info-head'
+      head.appendChild(h1)
+      head.appendChild(actions)
+
+      info.appendChild(head)
       pop.appendChild(info)
-  
+
+      // Append close last so it sits on top
+      pop.appendChild(close)
+
       pop.hidden = false
       positionPanel()
       requestAnimationFrame(positionPanel)
