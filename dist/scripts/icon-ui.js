@@ -321,32 +321,20 @@
     }
   
     function closeMenu() { pop.hidden = true }
-  
-    function onPointerEnter(e) {
-      const tile = closestFromEvent(e, '.tile')
-      if (!tile) return
-      const name = getIconNameFromTile(tile)
-      if (!name) return
-      currentTile = tile
-      tooltip.textContent = name
-      const rect = tile.getBoundingClientRect()
-      placeEl(tooltip, rect, 8)
-      tooltip.hidden = false
-    }
-  
+
     function onPointerMove(e) {
-      if (tooltip.hidden) return
-      const tile = closestFromEvent(e, '.tile')
-      if (!tile) { tooltip.hidden = true; currentTile = null; return }
-      currentTile = tile
-      placeEl(tooltip, tile.getBoundingClientRect(), 8)
-    }
-  
-    function onPointerLeave(e) {
-      const tile = closestFromEvent(e, '.tile')
-      if (!tile) return
-      tooltip.hidden = true
-      if (currentTile === tile) currentTile = null
+        const tile = closestFromEvent(e, '.tile')
+        if (tile) {
+          const name = getIconNameFromTile(tile)
+          if (!name) { tooltip.hidden = true; currentTile = null; return }
+          currentTile = tile
+          tooltip.textContent = name
+          placeEl(tooltip, tile.getBoundingClientRect(), 8)
+          tooltip.hidden = false
+        } else {
+          tooltip.hidden = true
+          currentTile = null
+        }
     }
   
     function onClick(e) {
@@ -364,20 +352,19 @@
     }
   
     function wire() {
-      document.addEventListener('pointerenter', onPointerEnter, true)
-      document.addEventListener('pointermove', onPointerMove, true)
-      document.addEventListener('pointerleave', onPointerLeave, true)
-      document.addEventListener('click', onClick, true)
-      document.addEventListener('scroll', () => {
-        if (!tooltip.hidden && currentTile) {
-          placeEl(tooltip, currentTile.getBoundingClientRect(), 8)
-        }
-        if (!pop.hidden) positionPanel()
-      }, { passive: true, capture: true })
-      window.addEventListener('resize', () => {
-        tooltip.hidden = true
-        if (!pop.hidden) positionPanel()
-      })
+        // Drive hover from pointermove so SVG and container are unified
+        document.addEventListener('pointermove', onPointerMove, true)
+        document.addEventListener('click', onClick, true)
+        document.addEventListener('scroll', () => {
+          if (!tooltip.hidden && currentTile) {
+            placeEl(tooltip, currentTile.getBoundingClientRect(), 8)
+          }
+          if (!pop.hidden) positionPanel()
+        }, { passive: true, capture: true })
+        window.addEventListener('resize', () => {
+          tooltip.hidden = true
+          if (!pop.hidden) positionPanel()
+        })
       document.addEventListener('click', (e) => {
         const inMenu = !!closestFromEvent(e, '.menu')
         if (!inMenu) document.querySelectorAll('.dd').forEach(x => x.hidden = true)
