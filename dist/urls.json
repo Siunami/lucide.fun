@@ -1,6 +1,13 @@
 [
   {
     "author": "matthew siu",
+    "icon": "paintbrush",
+    "name": "background",
+    "url": "/matthew-siu/background/",
+    "description": ""
+  },
+  {
+    "author": "matthew siu",
     "icon": "bomb",
     "name": "exploding text",
     "url": "/matthew-siu/exploding-text/",

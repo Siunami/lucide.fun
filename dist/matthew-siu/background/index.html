@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inverse Distance Weighted Border Glow</title>
+<style>
+html, body, canvas { margin:0; width:100%; height:100%; display:block; background:#000; }
+#ui { position:fixed; top:12px; right:12px; z-index:10; color:#fff; background:rgba(20,20,20,.6); padding:8px 10px; border-radius:8px; font:12px/1.2 -apple-system, system-ui, Segoe UI, Roboto, sans-serif; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+#ui label { display:flex; align-items:center; gap:8px; }
+#ui input[type=range] { width:200px; }
+</style>
+<div id="ui">
+  <label>
+    Points
+    <input id="points" type="range" min="0" max="256" step="1" value="128">
+    <span id="pointsLabel"></span>
+  </label>
+ </div>
+<canvas id="c"></canvas>
+<script>
+(function () {
+  const canvas = document.getElementById('c');
+  const gl = canvas.getContext('webgl');
+  if (!gl) { document.body.textContent = 'WebGL not supported'; return; }
+  const pointsInput = document.getElementById('points');
+  const pointsLabel = document.getElementById('pointsLabel');
+
+  const MAX_POINTS = 256; // upper bound for border points
+
+  const vs = `
+attribute vec2 aPos;
+void main() {
+  gl_Position = vec4(aPos, 0.0, 1.0);
+}
+`;
+
+  const fs = `
+precision highp float;
+#define MAX_POINTS ${MAX_POINTS}
+
+uniform vec2 iResolution;
+uniform float uPower;
+uniform int uCount;
+
+uniform vec2 pointsPos[MAX_POINTS];
+uniform vec3 pointsCol[MAX_POINTS];
+
+uniform sampler2D uImage;
+uniform vec2 uImgMin; // in pixels (bottom-left)
+uniform vec2 uImgMax; // in pixels (bottom-left)
+
+void main() {
+  vec2 frag = gl_FragCoord.xy;
+
+  // Compute glow in the same normalized space as points: divide by iResolution.y
+  vec2 uv = frag / iResolution.y;
+
+  float inv_sum = 0.0;
+  vec3 mean = vec3(0.0);
+
+  // Accumulate contributions from points (only first uCount are active)
+  for (int i = 0; i < MAX_POINTS; ++i) {
+    float active = step(float(i), float(uCount - 1));
+    float dist = max(0.00001, distance(uv, pointsPos[i]));
+    float invd = active * (1.0 / pow(dist, uPower));
+    inv_sum += invd;
+    mean += pointsCol[i] * invd;
+  }
+
+  vec3 glow = (inv_sum > 0.0) ? (mean / inv_sum) : vec3(0.0);
+
+  // Image sampling: map frag to image UV
+  vec2 imgSize = uImgMax - uImgMin;
+  vec2 imgUV = (frag - uImgMin) / imgSize;
+  float inX = step(0.0, imgUV.x) * step(imgUV.x, 1.0);
+  float inY = step(0.0, imgUV.y) * step(imgUV.y, 1.0);
+  float inImg = inX * inY;
+
+  // Sample image only when inside; texture2D is safe but we gate alpha anyway
+  vec4 img = texture2D(uImage, imgUV);
+
+  // Composite: image over glow
+  vec3 color = mix(glow, img.rgb, inImg * img.a);
+  gl_FragColor = vec4(color, 1.0);
+}
+`;
+
+  function compile(type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+      throw new Error(gl.getShaderInfoLog(s) || 'Shader compile error');
+    }
+    return s;
+  }
+
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compile(gl.VERTEX_SHADER, vs));
+  gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    throw new Error(gl.getProgramInfoLog(prog) || 'Program link error');
+  }
+  gl.useProgram(prog);
+
+  const quad = new Float32Array([
+    -1, -1,  1, -1, -1,  1,
+    -1,  1,  1, -1,  1,  1
+  ]);
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
+  const aPos = gl.getAttribLocation(prog, 'aPos');
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+  const uRes = gl.getUniformLocation(prog, 'iResolution');
+  const uPower = gl.getUniformLocation(prog, 'uPower');
+  const uCount = gl.getUniformLocation(prog, 'uCount');
+  const uPointsPos = gl.getUniformLocation(prog, 'pointsPos[0]');
+  const uPointsCol = gl.getUniformLocation(prog, 'pointsCol[0]');
+  const uImage = gl.getUniformLocation(prog, 'uImage');
+  const uImgMin = gl.getUniformLocation(prog, 'uImgMin');
+  const uImgMax = gl.getUniformLocation(prog, 'uImgMax');
+
+  gl.uniform1f(uPower, 2.0); // glow hardness
+
+  // Texture setup
+  const tex = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); // make v=0 bottom
+  gl.uniform1i(uImage, 0);
+
+  // Offscreen canvas for sampling image colors
+  const samplerCanvas = document.createElement('canvas');
+  const samplerCtx = samplerCanvas.getContext('2d');
+
+  const state = {
+    img: null,
+    imgW: 0,
+    imgH: 0,
+    imgRect: { minX: 0, minY: 0, maxX: 0, maxY: 0 }, // in pixels, bottom-left
+    pointsPosData: new Float32Array(MAX_POINTS * 2),
+    pointsColData: new Float32Array(MAX_POINTS * 3),
+    pointsCount: 0,
+    requestedPoints: pointsInput ? parseInt(pointsInput.value, 10) : 128
+  };
+
+  function dpr() {
+    return Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+  }
+
+  function resize() {
+    const r = dpr();
+    const w = Math.floor(canvas.clientWidth * r);
+    const h = Math.floor(canvas.clientHeight * r);
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    gl.viewport(0, 0, w, h);
+    gl.uniform2f(uRes, w, h);
+    if (state.img) {
+      layoutImageAndPoints(); // recompute rect and border points on resize
+    }
+  }
+
+  function fitRectInside(w, h, imgW, imgH, scale) {
+    const aspect = imgW / imgH;
+    let outW = Math.min(w * scale, h * scale * aspect);
+    let outH = outW / aspect;
+    if (outH > h * scale) {
+      outH = h * scale;
+      outW = outH * aspect;
+    }
+    return { width: outW, height: outH };
+  }
+
+  function layoutImageAndPoints() {
+    const cw = canvas.width;
+    const ch = canvas.height;
+    const fit = fitRectInside(cw, ch, state.imgW, state.imgH, 0.6);
+    const cx = cw * 0.5;
+    const cy = ch * 0.5;
+    const halfW = fit.width * 0.5;
+    const halfH = fit.height * 0.5;
+
+    const minX = cx - halfW;
+    const maxX = cx + halfW;
+    const minY = cy - halfH; // bottom-left coords
+    const maxY = cy + halfH;
+
+    state.imgRect = { minX, minY, maxX, maxY };
+    gl.uniform2f(uImgMin, minX, minY);
+    gl.uniform2f(uImgMax, maxX, maxY);
+
+    // Build points hugging the rectangle border with a slight inward overlap
+    const width = maxX - minX;
+    const height = maxY - minY;
+    const perimeter = 2 * (width + height);
+
+    // Move points slightly INSIDE the image to eliminate the gap
+    const overlap = Math.ceil(2 * dpr()); // in pixels
+    const margin = -overlap; // negative => inside the image
+
+    // Use slider's requested number of points
+    let count = Math.max(0, Math.min(MAX_POINTS, Math.floor(state.requestedPoints)));
+
+    // Proportional allocation per edge
+    let nTop = 0, nBottom = 0, nLeft = 0, nRight = 0;
+    if (count > 0) {
+      nTop = Math.max(1, Math.round(count * (width / perimeter)));
+      nBottom = nTop;
+      nLeft = Math.max(1, Math.round(count * (height / perimeter)));
+      nRight = nLeft;
+      let total = nTop + nBottom + nLeft + nRight;
+      // Adjust to match 'count'
+      while (total > count) {
+        if (nTop >= nBottom && nTop >= nLeft && nTop >= nRight) nTop--; else
+        if (nBottom >= nLeft && nBottom >= nRight) nBottom--; else
+        if (nLeft >= nRight) nLeft--; else nRight--;
+        total = nTop + nBottom + nLeft + nRight;
+      }
+      while (total < count) {
+        if (nTop <= nBottom && nTop <= nLeft && nTop <= nRight) nTop++; else
+        if (nBottom <= nLeft && nBottom <= nRight) nBottom++; else
+        if (nLeft <= nRight) nLeft++; else nRight++;
+        total = nTop + nBottom + nLeft + nRight;
+      }
+    }
+
+    const pts = [];
+    // Top edge (y = maxY + margin) — inside image because margin < 0
+    for (let i = 0; i < nTop; i++) {
+      const t = (i + 0.5) / nTop;
+      const x = minX + t * width;
+      pts.push([x, maxY + margin, t, 0.999, 'top']);
+    }
+    // Bottom edge
+    for (let i = 0; i < nBottom; i++) {
+      const t = (i + 0.5) / nBottom;
+      const x = minX + t * width;
+      pts.push([x, minY - margin, t, 0.001, 'bottom']);
+    }
+    // Left edge
+    for (let i = 0; i < nLeft; i++) {
+      const t = (i + 0.5) / nLeft;
+      const y = minY + t * height;
+      pts.push([minX - margin, y, 0.001, t, 'left']);
+    }
+    // Right edge
+    for (let i = 0; i < nRight; i++) {
+      const t = (i + 0.5) / nRight;
+      const y = minY + t * height;
+      pts.push([maxX + margin, y, 0.999, t, 'right']);
+    }
+
+    // Fill buffers
+    const pos = state.pointsPosData;
+    const col = state.pointsColData;
+
+    for (let i = 0; i < MAX_POINTS * 2; i++) pos[i] = 0;
+    for (let i = 0; i < MAX_POINTS * 3; i++) col[i] = 0;
+
+    for (let i = 0; i < pts.length; i++) {
+      const [px, py, u, v, side] = pts[i];
+      // position normalized by canvas.height to match shader's uv metric
+      pos[i * 2 + 0] = px / canvas.height;
+      pos[i * 2 + 1] = py / canvas.height;
+
+      // Sample color from image slightly inside the border
+      const uv = nudgeUV(u, v, side);
+      const rgb = sampleImageColor01(uv[0], uv[1]);
+      col[i * 3 + 0] = rgb[0];
+      col[i * 3 + 1] = rgb[1];
+      col[i * 3 + 2] = rgb[2];
+    }
+
+    state.pointsCount = pts.length;
+    gl.uniform1i(uCount, state.pointsCount);
+    gl.uniform2fv(uPointsPos, pos);
+    gl.uniform3fv(uPointsCol, col);
+    if (pointsLabel) pointsLabel.textContent = '(' + state.pointsCount + ' pts)';
+  }
+
+  function nudgeUV(u, v, side) {
+    // Nudge a few texels inward so we never sample outside the texture
+    const eps = 1.5 / Math.max(2, Math.max(state.imgW, state.imgH));
+    if (side === 'top') return [u, 1.0 - eps];
+    if (side === 'bottom') return [u, 0.0 + eps];
+    if (side === 'left') return [0.0 + eps, v];
+    if (side === 'right') return [1.0 - eps, v];
+    return [
+      Math.min(1.0 - eps, Math.max(eps, u)),
+      Math.min(1.0 - eps, Math.max(eps, v))
+    ];
+  }
+
+  function sampleImageColor01(u, v) {
+    // u,v in [0,1], v=0 bottom (to match GL after UNPACK_FLIP_Y)
+    if (!state.img) return [1, 1, 1];
+    const x = Math.min(state.imgW - 1, Math.max(0, Math.floor(u * state.imgW)));
+    const y = Math.min(state.imgH - 1, Math.max(0, Math.floor(v * state.imgH)));
+    // 2D canvas origin is top-left, so flip y
+    const yCanvas = (state.imgH - 1) - y;
+    const data = samplerCtx.getImageData(x, yCanvas, 1, 1).data;
+    return [data[0] / 255, data[1] / 255, data[2] / 255];
+  }
+
+  function loadImage(url) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = url;
+    });
+  }
+
+  function uploadTextureFromImage(img) {
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+  }
+
+  // Choose any image (CC0/Unsplash random)
+  const IMAGE_URL = 'https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d?w=1024&q=80&auto=format&fit=crop';
+
+  // Load and init
+  (async function init() {
+    resize();
+    window.addEventListener('resize', resize);
+    if (pointsInput) {
+      pointsInput.addEventListener('input', function() {
+        state.requestedPoints = parseInt(this.value, 10) || 0;
+        if (state.img) layoutImageAndPoints();
+      });
+    }
+
+    try {
+      const img = await loadImage(IMAGE_URL);
+      state.img = img;
+      state.imgW = img.naturalWidth || img.width;
+      state.imgH = img.naturalHeight || img.height;
+
+      // prepare sampler canvas
+      samplerCanvas.width = state.imgW;
+      samplerCanvas.height = state.imgH;
+      samplerCtx.drawImage(img, 0, 0, state.imgW, state.imgH);
+
+      uploadTextureFromImage(img);
+
+      layoutImageAndPoints();
+      requestAnimationFrame(frame);
+    } catch (e) {
+      console.error(e);
+      document.body.textContent = 'Failed to load image.';
+    }
+  })();
+
+  function frame() {
+    // Points/uniforms updated on resize or image load; draw each frame
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    requestAnimationFrame(frame);
+  }
+})();
+</script>
+</html>
